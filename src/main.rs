@@ -1,5 +1,5 @@
 use std::{
-    fs::File, io::{self, stdin, Write}, mem, path::Path, sync::OnceLock, thread, time::Duration
+    fs::File, io::{self, stdin, Write}, mem, path::Path, sync::OnceLock, thread, time::{Duration, Instant}
 };
 
 use analyzer::{Analyzer, FFT_CHUNK_SIZE};
@@ -31,7 +31,9 @@ fn main() {
 }
 
 fn record_live() {
+    // CLI stuff
     let cli = CLI.get().unwrap();
+    let poll_interval = Duration::from_secs_f64(cli.poll_interval);
 
     // audio recording config
     let host = cpal::default_host();
@@ -42,6 +44,9 @@ fn record_live() {
     let mut chunk_box: Vec<f32> = Vec::new();
     let mut proc = Analyzer::new();
     chunk_box.reserve(FFT_CHUNK_SIZE);
+
+    // state
+    let mut last_print = Instant::now();
 
     let stream = dev
         .build_input_stream(
@@ -67,15 +72,21 @@ fn record_live() {
                         }))
                     }
                 }
-                if cli.interactive {
-                    // print usually flushes on newline, no newline so need manual flush
-                    print!("\x1B[2Kscore: {}\x1B[G", proc.rain_score());
-                    io::stdout().flush().unwrap();
+                let now = Instant::now();
+                while now - last_print > poll_interval {
+                    if cli.interactive {
+                        // print usually flushes on newline, no newline so need manual flush
+                        print!("\x1B[2Kscore: {}\x1B[G", proc.rain_score());
+                        io::stdout().flush().unwrap();
+                    }
+                    else {
+                        // println flushes
+                        println!("{}", proc.rain_score());
+                    }
+                    last_print += poll_interval;
                 }
-                else {
-                    // println flushes
-                    println!("{}", proc.rain_score());
-                }
+
+                
             },
             move |err| panic!("Audio error: {err}"),
             None,
