@@ -1,7 +1,7 @@
 use std::{fmt::Display, io::{self, Write}, vec};
 
 use basic_dsp::{numbers::RealNumber, Domain, DspVec, MetaData, NumberSpace, ToSlice, Vector};
-use gnuplot::{Figure, PlotOption::Caption};
+use gnuplot::{AlignType, AutoOption, AxesCommon, Figure, LabelOption, PlotOption::Caption};
 
 pub fn write_csv_row(output: &mut impl Write, mut source: impl Iterator<Item = impl Display>) -> Result<(), io::Error>{
     if let Some(first) = source.next() {
@@ -25,37 +25,23 @@ impl DspPlotter {
         }
     }
 
-    pub fn plot<N: NumberSpace, D: Domain>(&mut self, vector: &DspVec<Vec<f32>, f32, N, D>) {
-        let dx = vector.delta();
+    pub fn plot<S: ToSlice<f32>, N: NumberSpace, D: Domain>(&mut self, vector: &DspVec<S, f32, N, D>) {
 
         let xvals = (0..vector.len()).map(|x| (x as f32) * vector.delta());
-        let yvals = vector.data.clone();
+        let yvals = vector.data.to_slice().to_vec();
 
         self.fg.clear_axes();
-        self.fg.axes2d().lines(
+        
+        let axes = self.fg.axes2d().lines(
             xvals,
             yvals,
             &[Caption("test")]
         );
 
+        axes.set_x_range(AutoOption::Fix(0.0), AutoOption::Fix(vector.delta() as f64 * (vector.len() as f64)));
+        axes.set_y_range(AutoOption::Fix(0.0), AutoOption::Fix(50.0));
+        axes.set_x_label("Bin number", &[LabelOption::TextAlign(AlignType::AlignCenter)]);
+
         self.fg.show_and_keep_running().unwrap();
     }
-}
-
-pub fn plot_dsp<N: NumberSpace, D: Domain>(vector: &DspVec<Vec<f32>, f32, N, D>) {
-    let dx = vector.delta();
-
-    let mut fg = Figure::new();
-
-    let xvals = (0..vector.len()).map(|x| (x as f32) * vector.delta());
-    let yvals = vector.data.clone();
-
-    fg.clear_axes();
-    let plot = fg.axes2d().lines(
-        xvals,
-        yvals,
-        &[Caption("test")]
-    );
-
-    fg.show_and_keep_running().unwrap();
 }
